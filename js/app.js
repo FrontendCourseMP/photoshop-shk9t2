@@ -31,6 +31,16 @@ function drawToCanvas(imgData){ if(!imgData) return; fitCanvasToImage(imgData); 
 
 async function loadImageData(imgData, options){ options = options || {}; originalIsGB7 = !!options.isGB7; originalImageData = imgData; // reset levels when new image loaded
   initLevelsDefaults();
+  // compute initial scale to fit viewport with 50px padding
+  try{
+    const availW = Math.max(100, Math.floor(window.innerWidth - 100));
+    const availH = Math.max(100, Math.floor(window.innerHeight - 200));
+    let s = Math.min(availW / imgData.width, availH / imgData.height);
+    s = clampScale(s);
+    currentScale = s;
+    originalAspect = imgData.width / imgData.height;
+  }catch(e){ currentScale = 1; }
+  updateScaleDisplay();
   await updatePreviews(); renderDisplayedImage(); }
 
 function downloadBlob(blob, name){ const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
@@ -187,6 +197,129 @@ const levelsApplyBtn = document.getElementById('levelsApply');
 
 let levelsMap = null; // per-channel settings
 let rafLevels = null;
+
+// Scaling
+const scaleRange = document.getElementById('scaleRange');
+const scaleVal = document.getElementById('scaleVal');
+const btnScale = document.getElementById('btnScale');
+const scaleDialog = document.getElementById('scaleDialog');
+const origSizeEl = document.getElementById('origSize');
+const origMPEl = document.getElementById('origMP');
+const scaleModeEls = document.getElementsByName('scaleMode');
+const scaleWidthEl = document.getElementById('scaleWidth');
+const scaleHeightEl = document.getElementById('scaleHeight');
+const keepAspectEl = document.getElementById('keepAspect');
+const scaleAlgoEl = document.getElementById('scaleAlgo');
+const scaleResetBtn = document.getElementById('scaleReset');
+const scaleCancelBtn = document.getElementById('scaleCancel');
+const scaleApplyBtn = document.getElementById('scaleApply');
+
+let currentScale = 1.0; // percent as decimal
+let interpolationMethod = 'bilinear';
+
+function updateScaleDisplay(){ if(scaleVal) scaleVal.textContent = Math.round(currentScale*100)+'%'; if(scaleRange) scaleRange.value = Math.round(currentScale*100); }
+
+if(scaleRange){ scaleRange.addEventListener('input', (e)=>{ currentScale = Number(e.target.value)/100; updateScaleDisplay(); if(displayedImageData) drawToCanvas(displayedImageData); }); }
+
+function clampScale(s){ return Math.max(0.12, Math.min(3.0, s)); }
+
+// Nearest-neighbor interpolation
+function nearestNeighborScale(src, newW, newH){
+  const sw = src.width, sh = src.height; const srcData = src.data;
+  const out = new ImageData(newW, newH); const dst = out.data;
+  const xRatio = sw / newW; const yRatio = sh / newH;
+  for(let y=0;y<newH;y++){
+    const sy = Math.min(sh-1, Math.floor(y * yRatio));
+    for(let x=0;x<newW;x++){
+      const sx = Math.min(sw-1, Math.floor(x * xRatio));
+      const si = (sy*sw + sx)*4; const di = (y*newW + x)*4;
+      dst[di]=srcData[si]; dst[di+1]=srcData[si+1]; dst[di+2]=srcData[si+2]; dst[di+3]=srcData[si+3];
+    }
+  }
+  return out;
+}
+
+// Bilinear interpolation
+function bilinearScale(src, newW, newH){
+  const sw = src.width, sh = src.height; const s = src.data;
+  const out = new ImageData(newW, newH); const d = out.data;
+  const xScale = (sw-1) / (newW-1 || 1);
+  const yScale = (sh-1) / (newH-1 || 1);
+  for(let j=0;j<newH;j++){
+    const gy = j * yScale; const y0 = Math.floor(gy); const y1 = Math.min(sh-1, y0+1); const dy = gy - y0;
+    for(let i=0;i<newW;i++){
+      const gx = i * xScale; const x0 = Math.floor(gx); const x1 = Math.min(sw-1, x0+1); const dx = gx - x0;
+      const i00 = (y0*sw + x0)*4; const i10 = (y0*sw + x1)*4; const i01 = (y1*sw + x0)*4; const i11 = (y1*sw + x1)*4;
+      for(let c=0;c<4;c++){
+        const v00 = s[i00+c], v10 = s[i10+c], v01 = s[i01+c], v11 = s[i11+c];
+        const v0 = v00 + (v10 - v00) * dx;
+        const v1 = v01 + (v11 - v01) * dx;
+        const val = v0 + (v1 - v0) * dy;
+        d[(j*newW + i)*4 + c] = Math.round(val);
+      }
+    }
+  }
+  return out;
+}
+
+function scaleImageData(srcImageData, newW, newH, method){
+  if(method === 'nearest') return nearestNeighborScale(srcImageData, newW, newH);
+  return bilinearScale(srcImageData, newW, newH);
+}
+
+// modify drawToCanvas to support scaling
+function drawToCanvas(imgData){ if(!imgData) return; const scale = currentScale || 1; if(Math.abs(scale-1)<1e-6){ fitCanvasToImage(imgData); ctx.putImageData(imgData,0,0); } else { const newW = Math.max(1, Math.round(imgData.width * scale)); const newH = Math.max(1, Math.round(imgData.height * scale)); const scaled = scaleImageData(imgData, newW, newH, interpolationMethod); fitCanvasToImage(scaled); ctx.putImageData(scaled,0,0); } const ch = chkGray && chkGray.checked ? 'gray' : `${chkR.checked? 'R':''}${chkG.checked? 'G':''}${chkB.checked? 'B':''}${chkA.checked?'+A':''}`; setStatus(`${imgData.width}×${imgData.height} — view: ${ch} — scale ${Math.round(currentScale*100)}%`); }
+
+// Scale dialog wiring
+if(btnScale){ btnScale.addEventListener('click', ()=>{
+  if(!originalImageData){ setStatus('Загрузите изображение перед изменением размера'); return }
+  const w = originalImageData.width, h = originalImageData.height; origSizeEl.textContent = w+'×'+h; origMPEl.textContent = ((w*h)/1e6).toFixed(3);
+  // default percent mode
+  document.querySelector('input[name="scaleMode"][value="percent"]').checked = true;
+  // show percent values when in percent mode
+  scaleWidthEl.value = Math.round((currentScale||1) * 100);
+  scaleHeightEl.value = Math.round((currentScale||1) * 100);
+  scaleAlgoEl.value = interpolationMethod;
+  if(scaleDialog && scaleDialog.showModal) scaleDialog.showModal();
+}); }
+
+function getScaleMode(){ const v = document.querySelector('input[name="scaleMode"]:checked'); return v? v.value : 'percent'; }
+
+function scaleModeChanged(){ const mode = getScaleMode(); if(mode==='percent'){ // interpret width/height as percent relative to original
+    scaleWidthEl.value = Math.round((currentScale||1) * 100);
+    scaleHeightEl.value = Math.round((currentScale||1) * 100);
+  } else { scaleWidthEl.value = originalImageData.width; scaleHeightEl.value = originalImageData.height; }
+}
+
+Array.from(scaleModeEls||[]).forEach(el=> el.addEventListener('change', scaleModeChanged));
+
+// keep aspect behavior
+let originalAspect = 1;
+
+function updateWHFromInputs(changed){ if(!originalImageData) return; const mode = getScaleMode(); if(mode==='percent'){ // width/height fields are pixel values interpreted as percent of original? We will keep them as pixels for editing
+  }
+  if(keepAspectEl && keepAspectEl.checked){ if(changed==='w'){ const newW = Number(scaleWidthEl.value); const newH = Math.round(newW / originalAspect); scaleHeightEl.value = newH; } else if(changed==='h'){ const newH = Number(scaleHeightEl.value); const newW = Math.round(newH * originalAspect); scaleWidthEl.value = newW; } }
+}
+
+if(scaleWidthEl) scaleWidthEl.addEventListener('input', ()=> updateWHFromInputs('w'));
+if(scaleHeightEl) scaleHeightEl.addEventListener('input', ()=> updateWHFromInputs('h'));
+
+if(scaleResetBtn) scaleResetBtn.addEventListener('click', ()=>{ if(!originalImageData) return; scaleModeChanged(); scaleAlgoEl.value = 'bilinear'; keepAspectEl.checked = true; });
+if(scaleCancelBtn) scaleCancelBtn.addEventListener('click', ()=>{ if(scaleDialog) scaleDialog.close(); });
+if(scaleApplyBtn) scaleApplyBtn.addEventListener('click', ()=>{
+  if(!originalImageData) return; const mode = getScaleMode(); let newW = Number(scaleWidthEl.value); let newH = Number(scaleHeightEl.value);
+  if(mode==='percent'){ // treat width field as percentage
+    const pct = Number(scaleWidthEl.value); if(isNaN(pct) || pct<=0){ alert('Неверное значение процента'); return; } const s = pct/100; newW = Math.max(1, Math.round(originalImageData.width * s)); newH = Math.max(1, Math.round(originalImageData.height * s)); }
+  // validate ranges
+  if(newW < 1 || newH < 1 || newW > 20000 || newH > 20000){ alert('Размеры вне допустимого диапазона (1..20000)'); return; }
+  interpolationMethod = scaleAlgoEl.value || 'bilinear';
+  // perform scaling from original source
+  const scaled = scaleImageData(originalImageData, newW, newH, interpolationMethod);
+  originalImageData = scaled; originalIsGB7 = false; // scaled image is RGBA
+  // reset levels and previews for new image
+  initLevelsDefaults(); updatePreviews().then(()=>{ renderDisplayedImage(); if(scaleDialog) scaleDialog.close(); // set scale to 100%
+    currentScale = 1; updateScaleDisplay(); });
+});
 
 function initLevelsDefaults(){
   const bins = originalIsGB7 ? 128 : 256;
