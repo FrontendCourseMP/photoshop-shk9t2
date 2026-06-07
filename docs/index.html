@@ -18,6 +18,8 @@
       <button id="downloadGB7">Download GB7</button>
       <button id="btnPipette">Пипетка</button>
       <button id="btnLevels">Уровни</button>
+      <label class="scale-control">Масштаб: <input id="scaleRange" type="range" min="12" max="300" value="100"><span id="scaleVal">100%</span></label>
+      <button id="btnScale">Масштабировать</button>
       <select id="preset">
         <option value="gradient">Gradient</option>
         <option value="checker">Checker</option>
@@ -73,6 +75,31 @@
           <button type="button" id="levelsReset">Сброс</button>
           <button type="button" id="levelsCancel">Отмена</button>
           <button type="button" id="levelsApply">Применить</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="scaleDialog" class="scale-dialog">
+      <h2>Изменение размера (масштаб)</h2>
+      <div class="scale-body">
+        <div class="scale-info">Исходный размер: <span id="origSize">-</span> — <span id="origMP">-</span> Мп</div>
+        <div class="scale-mode">
+          <label><input type="radio" name="scaleMode" value="percent" checked> В процентах</label>
+          <label><input type="radio" name="scaleMode" value="pixels"> В пикселях</label>
+        </div>
+        <div class="scale-inputs">
+          <label>Ширина: <input id="scaleWidth" type="number" min="1"></label>
+          <label>Высота: <input id="scaleHeight" type="number" min="1"></label>
+          <label><input id="keepAspect" type="checkbox" checked> Сохранить пропорции</label>
+        </div>
+        <div class="scale-algo">
+          <label>Алгоритм: <select id="scaleAlgo"><option value="bilinear">Билинейный</option><option value="nearest">Ближайший сосед</option></select></label>
+          <span class="tooltip" title="Билинейная интерполяция даёт более плавный результат; ближайший сосед быстрее и сохраняет резкие пиксели">?</span>
+        </div>
+        <div class="scale-actions">
+          <button id="scaleReset">Сброс</button>
+          <button id="scaleCancel">Отмена</button>
+          <button id="scaleApply">Применить</button>
         </div>
       </div>
     </dialog>
