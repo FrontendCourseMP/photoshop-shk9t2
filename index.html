@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GrayBit-7 Image Lab</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>GrayBit-7 Image Lab</h1>
+  </header>
+  <main>
+    <section class="controls">
+      <input id="fileInput" type="file" accept=".gb7,image/png,image/jpeg" />
+      <button id="downloadPNG">Download PNG</button>
+      <button id="downloadJPG">Download JPG</button>
+      <button id="downloadGB7">Download GB7</button>
+      <select id="preset">
+        <option value="gradient">Gradient</option>
+        <option value="checker">Checker</option>
+        <option value="masked">Masked circle</option>
+      </select>
+      <button id="generateBtn">Generate Test Image</button>
+    </section>
+
+    <section class="canvas-wrap">
+      <canvas id="canvas"></canvas>
+    </section>
+  </main>
+  <footer id="statusBar">Ready</footer>
+
+  <script src="js/gb7.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
