@@ -35,3 +35,17 @@ canvas{max-width:100%;height:auto;border:1px solid #999}
 .scale-actions{display:flex;gap:8px;justify-content:flex-end}
 .tooltip{display:inline-block;margin-left:8px;border-radius:4px;background:#eee;padding:2px 6px;cursor:help}
 
+/* Filters dialog */
+.filters-dialog{width:620px;padding:14px;border-radius:6px}
+.filters-body{display:flex;flex-direction:column;gap:10px}
+.filters-top{display:flex;align-items:center;gap:12px}
+.filters-preview{margin-left:8px}
+.kernel-grid{display:grid;grid-template-columns:repeat(3,64px);grid-gap:6px;justify-content:start}
+.kernel-grid .kernel-input{width:64px;padding:6px;text-align:center;border:1px solid #bbb;border-radius:4px}
+.filters-options{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.filters-channels label{margin-right:8px}
+.filters-channels #filterSelectAll{margin-left:8px}
+.filters-edge label{margin-right:8px}
+.filters-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+.filters-note{font-size:12px;color:var(--muted);margin-top:6px}
+
