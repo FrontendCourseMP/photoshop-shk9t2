@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>GrayBit-7 Image Lab</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
   <header>
@@ -16,6 +16,7 @@
       <button id="downloadPNG">Download PNG</button>
       <button id="downloadJPG">Download JPG</button>
       <button id="downloadGB7">Download GB7</button>
+      <button id="btnPipette">Пипетка</button>
       <select id="preset">
         <option value="gradient">Gradient</option>
         <option value="checker">Checker</option>
@@ -24,9 +25,22 @@
       <button id="generateBtn">Generate Test Image</button>
     </section>
 
-    <section class="canvas-wrap">
-      <canvas id="canvas"></canvas>
+    <section class="workspace">
+      <aside id="channelPanel" class="channel-panel">
+        <h3>Каналы</h3>
+        <div class="channel-item"><canvas id="previewGray" width="128" height="128"></canvas><label><input type="checkbox" data-channel="gray"> Gray (обзор)</label></div>
+        <div class="channel-item"><canvas id="previewR" width="128" height="128"></canvas><label><input type="checkbox" data-channel="r" checked> R</label></div>
+        <div class="channel-item"><canvas id="previewG" width="128" height="128"></canvas><label><input type="checkbox" data-channel="g" checked> G</label></div>
+        <div class="channel-item"><canvas id="previewB" width="128" height="128"></canvas><label><input type="checkbox" data-channel="b" checked> B</label></div>
+        <div class="channel-item"><canvas id="previewA" width="128" height="128"></canvas><label><input type="checkbox" data-channel="a" checked> Alpha</label></div>
+      </aside>
+
+      <section class="canvas-wrap">
+        <canvas id="canvas"></canvas>
+      </section>
     </section>
+
+    <div id="pipetteInfo" class="pipette-info" style="display:none"></div>
   </main>
   <footer id="statusBar">Ready</footer>
 
