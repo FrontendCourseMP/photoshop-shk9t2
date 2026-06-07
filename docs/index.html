@@ -18,6 +18,7 @@
       <button id="downloadGB7">Download GB7</button>
       <button id="btnPipette">Пипетка</button>
       <button id="btnLevels">Уровни</button>
+      <button id="btnFilters">Фильтры</button>
       <label class="scale-control">Масштаб: <input id="scaleRange" type="range" min="12" max="300" value="100"><span id="scaleVal">100%</span></label>
       <button id="btnScale">Масштабировать</button>
       <select id="preset">
@@ -79,6 +80,61 @@
       </div>
     </dialog>
 
+    <dialog id="filtersDialog" class="filters-dialog">
+      <h2>Фильтры (ядро 3×3)</h2>
+      <div class="filters-body">
+        <div class="filters-top">
+          <label>Преднастройки:
+            <select id="filterPreset">
+              <option value="identity">Тождественное отображение</option>
+              <option value="sharpen">Повышение резкости</option>
+              <option value="gaussian">Фильтр Гаусса (3×3)</option>
+              <option value="box">Прямоугольное размытие</option>
+              <option value="prewitt_x">Оператор Прюитта (X)</option>
+              <option value="prewitt_y">Оператор Прюитта (Y)</option>
+            </select>
+          </label>
+          <label class="filters-preview"><input type="checkbox" id="filtersPreview" checked> Предпросмотр</label>
+        </div>
+
+        <div class="kernel-grid">
+          <input class="kernel-input" data-idx="0" type="number" step="any" value="0">
+          <input class="kernel-input" data-idx="1" type="number" step="any" value="0">
+          <input class="kernel-input" data-idx="2" type="number" step="any" value="0">
+          <input class="kernel-input" data-idx="3" type="number" step="any" value="0">
+          <input class="kernel-input" data-idx="4" type="number" step="any" value="1">
+          <input class="kernel-input" data-idx="5" type="number" step="any" value="0">
+          <input class="kernel-input" data-idx="6" type="number" step="any" value="0">
+          <input class="kernel-input" data-idx="7" type="number" step="any" value="0">
+          <input class="kernel-input" data-idx="8" type="number" step="any" value="0">
+        </div>
+
+        <div class="filters-options">
+          <div class="filters-channels">
+            <label><input type="checkbox" id="filterR" checked> R</label>
+            <label><input type="checkbox" id="filterG" checked> G</label>
+            <label><input type="checkbox" id="filterB" checked> B</label>
+            <label><input type="checkbox" id="filterA"> Alpha</label>
+            <button type="button" id="filterSelectAll">Все</button>
+          </div>
+          <div class="filters-edge">
+            <label>Заполнение края:</label>
+            <label><input type="radio" name="edgeMode" value="copy" checked> Копировать</label>
+            <label><input type="radio" name="edgeMode" value="black"> Черный</label>
+            <label><input type="radio" name="edgeMode" value="white"> Белый</label>
+          </div>
+        </div>
+
+        <div class="filters-actions">
+          <button id="filtersReset" type="button">Сброс</button>
+          <button id="filtersCancel" type="button">Закрыть</button>
+          <button id="filtersApply" type="button">Применить</button>
+        </div>
+
+        <div class="filters-note">Примечание: ядро нормализуется по сумме коэффициентов, если сумма ≠ 0.</div>
+      </div>
+    </dialog>
+
     <dialog id="scaleDialog" class="scale-dialog">
       <h2>Изменение размера (масштаб)</h2>
       <div class="scale-body">
@@ -108,5 +164,6 @@
 
   <script src="js/gb7.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/filters.js"></script>
 </body>
 </html>
