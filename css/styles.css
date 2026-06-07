@@ -6,4 +6,11 @@ main{padding:16px}
 .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .canvas-wrap{background: #ddd;padding:8px;display:flex;justify-content:center}
 canvas{max-width:100%;height:auto;border:1px solid #999}
+.workspace{display:flex;gap:12px;align-items:flex-start}
+.channel-panel{width:160px;background:var(--card);padding:8px;border:1px solid #ccc;border-radius:4px}
+.channel-panel h3{margin:0 0 8px 0;font-size:14px}
+.channel-item{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.channel-item canvas{width:48px;height:48px;border:1px solid #ccc}
+.pipette-info{position:fixed;right:16px;bottom:56px;background:#111;color:#fff;padding:8px;border-radius:4px;font-family:monospace;font-size:13px}
+.controls button.active{background:#007bff;color:#fff}
 .statusbar{position:fixed;left:0;right:0;bottom:0;background:#111;color:#fff;padding:8px;font-size:14px}
