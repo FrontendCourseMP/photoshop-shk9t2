@@ -17,6 +17,7 @@
       <button id="downloadJPG">Download JPG</button>
       <button id="downloadGB7">Download GB7</button>
       <button id="btnPipette">Пипетка</button>
+      <button id="btnLevels">Уровни</button>
       <select id="preset">
         <option value="gradient">Gradient</option>
         <option value="checker">Checker</option>
@@ -41,6 +42,40 @@
     </section>
 
     <div id="pipetteInfo" class="pipette-info" style="display:none"></div>
+
+    <dialog id="levelsDialog" class="levels-dialog">
+      <div class="levels-header"><h2>Уровни</h2></div>
+      <div class="levels-body">
+        <div class="levels-top">
+          <canvas id="histogramCanvas" width="512" height="140"></canvas>
+          <div class="levels-controls">
+            <label>Канал:
+              <select id="levelsChannel">
+                <option value="master">Master (RGB)</option>
+                <option value="r">Red</option>
+                <option value="g">Green</option>
+                <option value="b">Blue</option>
+                <option value="a">Alpha</option>
+              </select>
+            </label>
+            <label><input type="checkbox" id="levelsLog"> Логарифмическая шкала</label>
+            <label><input type="checkbox" id="levelsPreview" checked> Предпросмотр</label>
+          </div>
+        </div>
+
+        <div class="levels-sliders">
+          <label>Черный: <input id="levelBlack" type="range" min="0" max="255" value="0"><span id="levelBlackVal">0</span></label>
+          <label>Гамма: <input id="levelGamma" type="range" min="0.1" max="9.9" step="0.01" value="1"><span id="levelGammaVal">1.00</span></label>
+          <label>Белый: <input id="levelWhite" type="range" min="0" max="255" value="255"><span id="levelWhiteVal">255</span></label>
+        </div>
+
+        <div class="levels-actions">
+          <button type="button" id="levelsReset">Сброс</button>
+          <button type="button" id="levelsCancel">Отмена</button>
+          <button type="button" id="levelsApply">Применить</button>
+        </div>
+      </div>
+    </dialog>
   </main>
   <footer id="statusBar">Ready</footer>
 

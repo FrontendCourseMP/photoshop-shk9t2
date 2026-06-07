@@ -21,6 +21,7 @@ const pipetteInfo = document.getElementById('pipetteInfo');
 let originalImageData = null; // immutable source
 let displayedImageData = null; // after channel toggles
 let pipetteActive = false;
+let originalIsGB7 = false;
 
 function setStatus(text){ if(statusBar) statusBar.textContent = text }
 
@@ -28,7 +29,9 @@ function fitCanvasToImage(img){ canvas.width = img.width; canvas.height = img.he
 
 function drawToCanvas(imgData){ if(!imgData) return; fitCanvasToImage(imgData); ctx.putImageData(imgData,0,0); const ch = chkGray && chkGray.checked ? 'gray' : `${chkR.checked? 'R':''}${chkG.checked? 'G':''}${chkB.checked? 'B':''}${chkA.checked?'+A':''}`; setStatus(`${imgData.width}×${imgData.height} — view: ${ch}`); }
 
-async function loadImageData(imgData){ originalImageData = imgData; await updatePreviews(); renderDisplayedImage(); }
+async function loadImageData(imgData, options){ options = options || {}; originalIsGB7 = !!options.isGB7; originalImageData = imgData; // reset levels when new image loaded
+  initLevelsDefaults();
+  await updatePreviews(); renderDisplayedImage(); }
 
 function downloadBlob(blob, name){ const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
 
@@ -146,7 +149,7 @@ function generateMasked(w,h){ const img=new ImageData(w,h); const cx=w/2, cy=h/2
 fileInput.addEventListener('change', async (e)=>{
   const f = e.target.files[0]; if(!f) return; const name = f.name.toLowerCase();
   if(name.endsWith('.gb7')){
-    const ab = await f.arrayBuffer(); try{ const res = GB7.decode(ab); await loadImageData(res.imageData); } catch(err){ setStatus('Error: '+err.message) }
+    const ab = await f.arrayBuffer(); try{ const res = GB7.decode(ab); await loadImageData(res.imageData, {isGB7:true}); } catch(err){ setStatus('Error: '+err.message) }
   } else {
     const img = await createImageBitmap(f);
     const tmp = document.createElement('canvas'); tmp.width = img.width; tmp.height = img.height; const tctx = tmp.getContext('2d'); tctx.drawImage(img,0,0); const imgData = tctx.getImageData(0,0,img.width,img.height); await loadImageData(imgData);
@@ -163,3 +166,197 @@ fileInput.addEventListener('change', async (e)=>{
 
 // Make responsive canvas on resize
 window.addEventListener('resize', ()=>{ if(displayedImageData) drawToCanvas(displayedImageData) });
+
+/* Levels tool: histogram, input levels and preview/apply */
+const btnLevels = document.getElementById('btnLevels');
+const levelsDialog = document.getElementById('levelsDialog');
+const histCanvas = document.getElementById('histogramCanvas');
+const histCtx = histCanvas && histCanvas.getContext ? histCanvas.getContext('2d') : null;
+const levelBlackEl = document.getElementById('levelBlack');
+const levelWhiteEl = document.getElementById('levelWhite');
+const levelGammaEl = document.getElementById('levelGamma');
+const levelBlackVal = document.getElementById('levelBlackVal');
+const levelWhiteVal = document.getElementById('levelWhiteVal');
+const levelGammaVal = document.getElementById('levelGammaVal');
+const levelsChannelEl = document.getElementById('levelsChannel');
+const levelsPreviewEl = document.getElementById('levelsPreview');
+const levelsLogEl = document.getElementById('levelsLog');
+const levelsResetBtn = document.getElementById('levelsReset');
+const levelsCancelBtn = document.getElementById('levelsCancel');
+const levelsApplyBtn = document.getElementById('levelsApply');
+
+let levelsMap = null; // per-channel settings
+let rafLevels = null;
+
+function initLevelsDefaults(){
+  const bins = originalIsGB7 ? 128 : 256;
+  const def = ()=>({black:0, white:bins-1, gamma:1});
+  levelsMap = { master:def(), r:def(), g:def(), b:def(), a:def() };
+  if(levelBlackEl && levelWhiteEl && levelGammaEl){
+    levelBlackEl.min = 0; levelBlackEl.max = bins-1; levelWhiteEl.min = 0; levelWhiteEl.max = bins-1;
+    levelBlackEl.value = 0; levelWhiteEl.value = bins-1; levelGammaEl.value = 1;
+    levelBlackVal.textContent = levelBlackEl.value; levelWhiteVal.textContent = levelWhiteEl.value; levelGammaVal.textContent = Number(levelGammaEl.value).toFixed(2);
+  }
+}
+
+function computeHistogram(channel){
+  if(!originalImageData) return null;
+  const bins = originalIsGB7 ? 128 : 256;
+  const counts = new Uint32Array(bins);
+  const d = originalImageData.data;
+  for(let i=0;i<d.length;i+=4){
+    let v;
+    if(channel==='master') v = Math.round(0.2126*d[i] + 0.7152*d[i+1] + 0.0722*d[i+2]);
+    else if(channel==='r') v = d[i];
+    else if(channel==='g') v = d[i+1];
+    else if(channel==='b') v = d[i+2];
+    else v = d[i+3];
+    if(bins===128){ const idx = Math.round(v * (bins-1) / 255); counts[idx]++; } else { counts[v]++; }
+  }
+  return counts;
+}
+
+function drawHistogram(channel, useLog){
+  if(!histCtx || !originalImageData) return;
+  const counts = computeHistogram(channel) || new Uint32Array(256);
+  const bins = counts.length;
+  const w = histCanvas.width, h = histCanvas.height;
+  histCtx.clearRect(0,0,w,h);
+  // background
+  histCtx.fillStyle = '#fff'; histCtx.fillRect(0,0,w,h);
+  // find max (log or linear)
+  let max = 0; for(let i=0;i<bins;i++){ const v = counts[i]; if(useLog){ const lv = Math.log10(v+1); if(lv>max) max=lv } else { if(v>max) max=v } }
+  if(max===0) max=1;
+  const barW = w / bins;
+  histCtx.fillStyle = '#6b7280';
+  for(let i=0;i<bins;i++){
+    const v = counts[i]; const val = useLog ? Math.log10(v+1) : v; const ph = Math.round((val/max) * (h-4));
+    const x = Math.round(i*barW);
+    histCtx.fillRect(x, h-1-ph, Math.max(1, Math.ceil(barW)), ph);
+  }
+  // draw markers for black/white/gamma
+  const sel = levelsChannelEl ? levelsChannelEl.value : 'master';
+  const s = levelsMap && levelsMap[sel] ? levelsMap[sel] : {black:0, white: bins-1, gamma:1};
+  const scale = (v)=> (bins===128? (v/(bins-1)) : (v/(bins-1)));
+  const bx = Math.round(scale(s.black)*w);
+  const wx = Math.round(scale(s.white)*w);
+  histCtx.strokeStyle = 'red'; histCtx.lineWidth = 2; histCtx.beginPath(); histCtx.moveTo(bx,0); histCtx.lineTo(bx,h); histCtx.stroke();
+  histCtx.strokeStyle = 'green'; histCtx.beginPath(); histCtx.moveTo(wx,0); histCtx.lineTo(wx,h); histCtx.stroke();
+}
+
+function updateSlidersFromMap(){
+  const bins = originalIsGB7 ? 128 : 256;
+  const sel = levelsChannelEl.value;
+  const s = levelsMap[sel];
+  levelBlackEl.max = bins-1; levelWhiteEl.max = bins-1;
+  levelBlackEl.value = s.black; levelWhiteEl.value = s.white; levelGammaEl.value = s.gamma;
+  levelBlackVal.textContent = levelBlackEl.value; levelWhiteVal.textContent = levelWhiteEl.value; levelGammaVal.textContent = Number(levelGammaEl.value).toFixed(2);
+  drawHistogram(sel, !!levelsLogEl.checked);
+}
+
+function makeLutBins(black, white, gamma, bins){
+  const lut = new Uint8Array(bins);
+  const denom = Math.max(1, white - black);
+  for(let i=0;i<bins;i++){
+    let t = (i - black) / denom;
+    if(t<=0) lut[i]=0;
+    else if(t>=1) lut[i]=bins-1;
+    else lut[i] = Math.round(Math.pow(t, 1.0 / gamma) * (bins-1));
+  }
+  return lut;
+}
+
+function expandLutTo256(lutBins, bins){
+  const out = new Uint8Array(256);
+  if(bins===256){ for(let i=0;i<256;i++) out[i]=lutBins[i]; }
+  else { for(let v=0;v<256;v++){ const idx = Math.round(v * (bins-1) / 255); const mapped = lutBins[idx]; out[v] = Math.round(mapped * 255 / (bins-1)); } }
+  return out;
+}
+
+function applyLevelsPreview(){
+  if(!originalImageData) return;
+  if(!levelsPreviewEl.checked){ renderDisplayedImage(); return; }
+  // build LUTs
+  const bins = originalIsGB7 ? 128 : 256;
+  const master = levelsMap.master; const rset = levelsMap.r; const gset = levelsMap.g; const bset = levelsMap.b; const aset = levelsMap.a;
+  const masterLut = (master && !(master.black===0 && master.white===bins-1 && master.gamma===1)) ? expandLutTo256(makeLutBins(master.black, master.white, master.gamma, bins), bins) : null;
+  const rLut = (rset && !(rset.black===0 && rset.white===bins-1 && rset.gamma===1)) ? expandLutTo256(makeLutBins(rset.black, rset.white, rset.gamma, bins), bins) : null;
+  const gLut = (gset && !(gset.black===0 && gset.white===bins-1 && gset.gamma===1)) ? expandLutTo256(makeLutBins(gset.black, gset.white, gset.gamma, bins), bins) : null;
+  const bLut = (bset && !(bset.black===0 && bset.white===bins-1 && bset.gamma===1)) ? expandLutTo256(makeLutBins(bset.black, bset.white, bset.gamma, bins), bins) : null;
+  const aLut = (aset && !(aset.black===0 && aset.white===bins-1 && aset.gamma===1)) ? expandLutTo256(makeLutBins(aset.black, aset.white, aset.gamma, bins), bins) : null;
+
+  const w = originalImageData.width, h=originalImageData.height;
+  const out = new ImageData(w,h);
+  const od = originalImageData.data, nd = out.data;
+  for(let i=0;i<od.length;i+=4){
+    let r = od[i], g = od[i+1], b = od[i+2], a = od[i+3];
+    if(masterLut){ r = masterLut[r]; g = masterLut[g]; b = masterLut[b]; }
+    if(rLut) r = rLut[r]; if(gLut) g = gLut[g]; if(bLut) b = bLut[b]; if(aLut) a = aLut[a];
+    nd[i]=r; nd[i+1]=g; nd[i+2]=b; nd[i+3]=a;
+  }
+  displayedImageData = out; drawToCanvas(displayedImageData);
+}
+
+function applyLevelsToOriginal(){
+  if(!originalImageData) return;
+  // similar to preview but write back to originalImageData
+  const bins = originalIsGB7 ? 128 : 256;
+  const master = levelsMap.master; const rset = levelsMap.r; const gset = levelsMap.g; const bset = levelsMap.b; const aset = levelsMap.a;
+  const masterLut = (master && !(master.black===0 && master.white===bins-1 && master.gamma===1)) ? expandLutTo256(makeLutBins(master.black, master.white, master.gamma, bins), bins) : null;
+  const rLut = (rset && !(rset.black===0 && rset.white===bins-1 && rset.gamma===1)) ? expandLutTo256(makeLutBins(rset.black, rset.white, rset.gamma, bins), bins) : null;
+  const gLut = (gset && !(gset.black===0 && gset.white===bins-1 && gset.gamma===1)) ? expandLutTo256(makeLutBins(gset.black, gset.white, gset.gamma, bins), bins) : null;
+  const bLut = (bset && !(bset.black===0 && bset.white===bins-1 && bset.gamma===1)) ? expandLutTo256(makeLutBins(bset.black, bset.white, bset.gamma, bins), bins) : null;
+  const aLut = (aset && !(aset.black===0 && aset.white===bins-1 && aset.gamma===1)) ? expandLutTo256(makeLutBins(aset.black, aset.white, aset.gamma, bins), bins) : null;
+
+  const w = originalImageData.width, h=originalImageData.height;
+  const out = new ImageData(w,h);
+  const od = originalImageData.data, nd = out.data;
+  for(let i=0;i<od.length;i+=4){
+    let r = od[i], g = od[i+1], b = od[i+2], a = od[i+3];
+    if(masterLut){ r = masterLut[r]; g = masterLut[g]; b = masterLut[b]; }
+    if(rLut) r = rLut[r]; if(gLut) g = gLut[g]; if(bLut) b = bLut[b]; if(aLut) a = aLut[a];
+    nd[i]=r; nd[i+1]=g; nd[i+2]=b; nd[i+3]=a;
+  }
+  // replace original and update previews
+  originalImageData = out; updatePreviews().then(()=>{ renderDisplayedImage(); });
+}
+
+// UI wiring
+if(btnLevels){ btnLevels.addEventListener('click', ()=>{ if(!originalImageData){ setStatus('Загрузите изображение перед использованием Уровней'); return } openLevelsDialog(); }); }
+
+function openLevelsDialog(){
+  if(!levelsMap) initLevelsDefaults();
+  const bins = originalIsGB7 ? 128 : 256;
+  levelBlackEl.min = 0; levelBlackEl.max = bins-1; levelWhiteEl.min = 0; levelWhiteEl.max = bins-1;
+  updateSlidersFromMap();
+  drawHistogram(levelsChannelEl.value, !!levelsLogEl.checked);
+  levelsDialog.showModal();
+}
+
+if(levelsChannelEl){ levelsChannelEl.addEventListener('change', ()=>{ updateSlidersFromMap(); drawHistogram(levelsChannelEl.value, !!levelsLogEl.checked); }); }
+
+function onLevelInput(e){
+  const bins = originalIsGB7 ? 128 : 256;
+  let black = Number(levelBlackEl.value); let white = Number(levelWhiteEl.value);
+  // enforce ordering
+  if(black < 0) black = 0; if(white > bins-1) white = bins-1;
+  if(black >= white){ if(e.target===levelBlackEl) black = Math.max(0, white-1); else white = Math.min(bins-1, black+1); }
+  levelBlackEl.value = black; levelWhiteEl.value = white;
+  levelBlackVal.textContent = black; levelWhiteVal.textContent = white;
+  levelGammaVal.textContent = Number(levelGammaEl.value).toFixed(2);
+  const sel = levelsChannelEl.value; levelsMap[sel].black = black; levelsMap[sel].white = white; levelsMap[sel].gamma = Number(levelGammaEl.value);
+  // schedule preview
+  if(rafLevels) cancelAnimationFrame(rafLevels);
+  rafLevels = requestAnimationFrame(()=>{ applyLevelsPreview(); drawHistogram(sel, !!levelsLogEl.checked); rafLevels = null; });
+}
+
+if(levelBlackEl) levelBlackEl.addEventListener('input', onLevelInput);
+if(levelWhiteEl) levelWhiteEl.addEventListener('input', onLevelInput);
+if(levelGammaEl) levelGammaEl.addEventListener('input', onLevelInput);
+if(levelsLogEl) levelsLogEl.addEventListener('change', ()=> drawHistogram(levelsChannelEl.value, !!levelsLogEl.checked));
+if(levelsPreviewEl) levelsPreviewEl.addEventListener('change', ()=>{ if(levelsPreviewEl.checked) applyLevelsPreview(); else renderDisplayedImage(); });
+
+if(levelsResetBtn) levelsResetBtn.addEventListener('click', ()=>{ const sel = levelsChannelEl.value; const bins = originalIsGB7 ? 128 : 256; levelsMap[sel] = {black:0, white:bins-1, gamma:1}; updateSlidersFromMap(); applyLevelsPreview(); });
+if(levelsCancelBtn) levelsCancelBtn.addEventListener('click', ()=>{ // revert preview and close
+  renderDisplayedImage(); if(levelsDialog) levelsDialog.close(); });
+if(levelsApplyBtn) levelsApplyBtn.addEventListener('click', ()=>{ applyLevelsToOriginal(); if(levelsDialog) levelsDialog.close(); });
