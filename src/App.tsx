@@ -5,6 +5,7 @@ import { renderChannels, toLab, type Channel } from './color';
 import { LevelsDialog } from './LevelsDialog';
 import { applyLevels, DEFAULT_LEVELS_STATE, type LevelsState } from './levels';
 import { ResizeDialog } from './ResizeDialog';
+import { KernelDialog } from './KernelDialog';
 import { clampZoom, fitZoom, ZOOM_MAX, ZOOM_MIN } from './scale';
 
 type LoadedImage = { 
@@ -98,6 +99,8 @@ export function App() {
   const [levelsPreview, setLevelsPreview] = useState(true);
 
   const [resizeOpen, setResizeOpen] = useState(false);
+  const [kernelOpen, setKernelOpen] = useState(false);
+  const [kernelPreview, setKernelPreview] = useState<PixelImage | null>(null);
   const [zoom, setZoom] = useState<number>(100);
 
   const available = useMemo(() => {
@@ -113,15 +116,16 @@ export function App() {
 
   const display = useMemo(() => {
     if (!loaded) return null;
-    
-    let result = renderChannels(loaded.image, channels, loaded.grayscale);
-    
+
+    const base = kernelPreview ?? loaded.image;
+    let result = renderChannels(base, channels, loaded.grayscale);
+
     if (levelsOpen || levelsPreview) {
       result = applyLevels(result, levelsState, loaded.grayscale, loaded.hasAlpha);
     }
-    
+
     return result;
-  }, [loaded, channels, levelsState, levelsOpen, levelsPreview]);
+  }, [loaded, channels, levelsState, levelsOpen, levelsPreview, kernelPreview]);
 
   useEffect(() => {
     const c = canvasRef.current;
@@ -211,6 +215,8 @@ export function App() {
       setLevelsState(DEFAULT_LEVELS_STATE);
       setLevelsOpen(false);
       setResizeOpen(false);
+      setKernelOpen(false);
+      setKernelPreview(null);
       setNotice(`Загружен файл «${file.name}».`);
     } catch (error) {
       setNotice(
@@ -328,6 +334,15 @@ export function App() {
     setNotice(`Размер изменён: ${nextImage.width} × ${nextImage.height}.`);
   }
 
+  function openKernel() { if (!loaded) return; setKernelOpen(true); }
+  function closeKernel() { setKernelOpen(false); setKernelPreview(null); }
+  function applyKernelResult(nextImage: PixelImage) {
+    if (!loaded) return;
+    setLoaded({ ...loaded, image: nextImage });
+    setKernelPreview(null);
+    setNotice('Фильтрация ядром применена.');
+  }
+
   const cssSize = useMemo(() => {
     if (!loaded) return null;
     const z = zoom / 100;
@@ -365,6 +380,7 @@ export function App() {
         </button>
         <button onClick={() => setLevelsOpen(true)} disabled={!loaded}>⇌ Уровни</button>
         <button onClick={openResize} disabled={!loaded}>⤢ Изменить размер</button>
+        <button onClick={openKernel} disabled={!loaded}>⊞ Фильтрация</button>
       </section>
 
       <div className="editor">
@@ -515,6 +531,15 @@ export function App() {
           image={loaded.image}
           onApply={applyResizeResult}
           onClose={closeResize}
+        />
+      )}
+
+      {kernelOpen && loaded && (
+        <KernelDialog
+          image={loaded.image}
+          onApply={applyKernelResult}
+          onClose={closeKernel}
+          onPreview={setKernelPreview}
         />
       )}
     </main>

@@ -56,15 +56,15 @@ describe('Levels', () => {
     });
 
     it('should clamp white point', () => {
-      const image = createTestImage([0, 50, 100, 150, 200, 255]);
+      const image = createTestImage([0, 50, 100, 150, 200, 220, 255]);
       const state = {
         ...DEFAULT_LEVELS_STATE,
         master: { black: 0, white: 200, gamma: 1.0 },
       };
       const result = applyLevels(image, state, true, false);
 
-      expect(result.data[20]).toBe(255); // 200 exactly at white point
-      expect(result.data[24]).toBe(255); // 255 > 200, maps to white (255)
+      expect(result.data[16]).toBe(255); // pixel index 4 = 200 exactly at white point (R = 16)
+      expect(result.data[24]).toBe(255); // pixel index 6 = 255 > 200, maps to white (R = 24)
     });
 
     it('should apply gamma correction', () => {
@@ -152,8 +152,8 @@ describe('Levels', () => {
       };
       const result = applyLevels(image, stateLowGamma, true, false);
 
-      // Low gamma should brighten
-      expect(result.data[0]).toBeGreaterThan(200);
+      // gamma = 0.1 → exponent = 1/gamma = 10 → strong darkening
+      expect(result.data[0]).toBeLessThan(50);
     });
 
     it('should handle high gamma values', () => {
@@ -164,8 +164,8 @@ describe('Levels', () => {
       };
       const result = applyLevels(image, stateHighGamma, true, false);
 
-      // High gamma should darken
-      expect(result.data[0]).toBeLessThan(128);
+      // gamma = 9.9 → exponent = 1/gamma ≈ 0.101 → strong brightening
+      expect(result.data[0]).toBeGreaterThan(200);
     });
 
     it('should handle inverted range (black > white should not crash)', () => {
