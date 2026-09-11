@@ -10,37 +10,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run build
-      - name: Create .nojekyll
+      - name: Create .nojekyll in dist
         run: touch dist/.nojekyll
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./dist
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    permissions:
-      pages: write
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/configure-pages@v5
+      - name: Deploy to gh-pages branch (Source: gh-pages / root)
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          enablement: true
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Publish to docs/ folder on main branch (Source: main / docs)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          rm -rf docs
+          cp -r dist docs
+          touch docs/.nojekyll
+          git add docs .nojekyll 2>/dev/null || true
+          git add docs
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(deploy): regenerate docs/ from dist [skip ci]"
+            git push origin main
+          else
+            echo "No changes in docs/, skipping push."
+          fi
