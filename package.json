@@ -2,6 +2,7 @@
   "name": "graybit-studio",
   "private": true,
   "version": "1.0.0",
+  "homepage": "https://frontendcoursemp.github.io/photoshop-shk9t2/",
   "type": "module",
   "scripts": {
     "dev": "vite",

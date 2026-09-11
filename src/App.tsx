@@ -4,6 +4,8 @@ import { decodeBrowserImage, downloadBytes, isBrowserImage, isGb7 } from './imag
 import { renderChannels, toLab, type Channel } from './color';
 import { LevelsDialog } from './LevelsDialog';
 import { applyLevels, DEFAULT_LEVELS_STATE, type LevelsState } from './levels';
+import { ResizeDialog } from './ResizeDialog';
+import { clampZoom, fitZoom, ZOOM_MAX, ZOOM_MIN } from './scale';
 
 type LoadedImage = { 
   image: PixelImage; 
@@ -34,6 +36,17 @@ const names: Record<Channel, string> = {
 
 const cleanName = (name: string) => name.replace(/\.[^.]+$/, '') || 'image';
 
+const ZOOM_PRESETS: { label: string; value: number }[] = [
+  { label: '12%', value: 12 },
+  { label: '25%', value: 25 },
+  { label: '50%', value: 50 },
+  { label: '75%', value: 75 },
+  { label: '100%', value: 100 },
+  { label: '150%', value: 150 },
+  { label: '200%', value: 200 },
+  { label: '300%', value: 300 },
+];
+
 function Thumbnail({
   image,
   channel,
@@ -54,7 +67,7 @@ function Thumbnail({
     c.width = w;
     c.height = h;
 
-    const d = { width: image.width, height: image.height, data: image.data };
+    const d = renderChannels(image, new Set([channel]), grayscale);
     const t = document.createElement('canvas');
     t.width = image.width;
     t.height = image.height;
@@ -64,26 +77,28 @@ function Thumbnail({
       0
     );
     c.getContext('2d')?.drawImage(t, 0, 0, w, h);
-  }, [image]);
+  }, [image, channel, grayscale]);
 
   return <canvas ref={ref} className="channel-thumb" aria-hidden="true" />;
 }
 
 export function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
   const [loaded, setLoaded] = useState<LoadedImage | null>(null);
   const [channels, setChannels] = useState<Set<Channel>>(new Set());
   const [eyedropper, setEyedropper] = useState(false);
   const [picked, setPicked] = useState<Pick | null>(null);
   const [notice, setNotice] = useState(
-    'Загрузите PNG, JPG или GB7 — и начните редактировать изображение.'
+    'Откройте PNG, JPG или GB7 — изображение появится на холсте.'
   );
 
-  // Levels state
   const [levelsOpen, setLevelsOpen] = useState(false);
   const [levelsState, setLevelsState] = useState<LevelsState>(DEFAULT_LEVELS_STATE);
   const [levelsPreview, setLevelsPreview] = useState(true);
-  const [originalImage, setOriginalImage] = useState<PixelImage | null>(null);
+
+  const [resizeOpen, setResizeOpen] = useState(false);
+  const [zoom, setZoom] = useState<number>(100);
 
   const available = useMemo(() => {
     if (!loaded) return [];
@@ -99,10 +114,8 @@ export function App() {
   const display = useMemo(() => {
     if (!loaded) return null;
     
-    // Apply channel filtering
     let result = renderChannels(loaded.image, channels, loaded.grayscale);
     
-    // Apply levels if needed
     if (levelsOpen || levelsPreview) {
       result = applyLevels(result, levelsState, loaded.grayscale, loaded.hasAlpha);
     }
@@ -125,6 +138,24 @@ export function App() {
       );
   }, [display]);
 
+  useEffect(() => {
+    if (!loaded || !workspaceRef.current) return;
+    const workspace = workspaceRef.current;
+    const measure = () => {
+      const rect = workspace.getBoundingClientRect();
+      const next = fitZoom(loaded.image.width, loaded.image.height, rect.width, rect.height, 50);
+      setZoom(next);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(workspace);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [loaded?.image.width, loaded?.image.height]);
+
   async function onSelect(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -139,23 +170,30 @@ export function App() {
           image: d,
           source: 'GB7',
           name: file.name,
-          colorDepth: d.metadata.hasMask ? '7 бит + альфа' : '7 бит',
+          colorDepth: d.metadata.hasMask ? '7 бит + маска' : '7 бит, серый',
           grayscale: true,
           hasAlpha: d.metadata.hasMask,
         };
       } else if (isBrowserImage(file)) {
         const image = await decodeBrowserImage(file);
+        const hasAlpha = (() => {
+          for (let i = 3; i < image.data.length; i += 4) {
+            if (image.data[i] < 255) return true;
+          }
+          return false;
+        })();
+        const isJpeg = /\.jpe?g$/i.test(file.name);
         next = {
           image,
-          source: /\.png$/i.test(file.name) ? 'PNG' : 'JPG',
+          source: isJpeg ? 'JPG' : 'PNG',
           name: file.name,
           colorDepth: '8 бит × 4 (RGBA)',
           grayscale: false,
-          hasAlpha: true,
+          hasAlpha: !isJpeg && hasAlpha,
         };
       } else {
         throw new Error(
-          'Поддерживаются только PNG, JPG/JPEG и GB7 — другие форматы не обслуживаются.'
+          'Поддерживаются только PNG, JPG/JPEG и GB7.'
         );
       }
 
@@ -170,14 +208,15 @@ export function App() {
         )
       );
       setPicked(null);
-      setOriginalImage(next.image);
       setLevelsState(DEFAULT_LEVELS_STATE);
-      setNotice(`✓ Загружено ${file.name}`);
+      setLevelsOpen(false);
+      setResizeOpen(false);
+      setNotice(`Загружен файл «${file.name}».`);
     } catch (error) {
       setNotice(
         error instanceof Error
           ? error.message
-          : 'Что-то пошло не так при загрузке файла.'
+          : 'Не удалось открыть изображение.'
       );
     }
   }
@@ -207,12 +246,12 @@ export function App() {
         `${cleanName(loaded!.name)}.gb7`,
         'application/octet-stream'
       );
-      setNotice('✓ GB7 загружено.');
+      setNotice('GB7 скачан.');
     } catch (e) {
       setNotice(
         e instanceof Error
           ? e.message
-          : 'Не удалось экспортировать GB7.'
+          : 'Ошибка скачивания.'
       );
     }
   }
@@ -236,7 +275,7 @@ export function App() {
   }
 
   function pick(e: MouseEvent<HTMLCanvasElement>) {
-    if (!eyedropper || !loaded) return;
+    if (!eyedropper || !loaded || !display) return;
 
     const r = e.currentTarget.getBoundingClientRect();
     const x = Math.min(
@@ -249,7 +288,7 @@ export function App() {
     );
 
     const i = (y * loaded.image.width + x) * 4;
-    const d = loaded.image.data;
+    const d = display.data;
 
     setPicked({
       x,
@@ -264,14 +303,39 @@ export function App() {
 
   const handleLevelsApply = useCallback(() => {
     setLevelsOpen(false);
-    // Levels already applied via display effect
-  }, []);
+    if (!loaded) return;
+    try {
+      const applied = applyLevels(loaded.image, levelsState, loaded.grayscale, loaded.hasAlpha);
+      setLoaded({ ...loaded, image: applied });
+      setLevelsState(DEFAULT_LEVELS_STATE);
+      setNotice('Коррекция уровней применена.');
+    } catch {
+      /* noop */
+    }
+  }, [loaded, levelsState]);
 
   const handleLevelsCancel = useCallback(() => {
     setLevelsOpen(false);
     setLevelsState(DEFAULT_LEVELS_STATE);
     setLevelsPreview(true);
   }, []);
+
+  function openResize() { if (!loaded) return; setResizeOpen(true); }
+  function closeResize() { setResizeOpen(false); }
+  function applyResizeResult(nextImage: PixelImage) {
+    if (!loaded) return;
+    setLoaded({ ...loaded, image: nextImage });
+    setNotice(`Размер изменён: ${nextImage.width} × ${nextImage.height}.`);
+  }
+
+  const cssSize = useMemo(() => {
+    if (!loaded) return null;
+    const z = zoom / 100;
+    return {
+      cssWidth: Math.max(1, Math.round(loaded.image.width * z)),
+      cssHeight: Math.max(1, Math.round(loaded.image.height * z)),
+    };
+  }, [loaded, zoom]);
 
   return (
     <main className="application">
@@ -281,36 +345,26 @@ export function App() {
           <h1>GrayBit Studio</h1>
         </div>
         <label className="primary-button">
-          Загрузить изображение
-          <input type="file" accept="image/png,image/jpeg,.jpg,.jpeg,.gb7" onChange={onSelect} />
+          Открыть изображение
+          <input type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg,.gb7" onChange={onSelect} />
         </label>
       </header>
 
       <section className="toolbar">
-        <span>Инструменты</span>
-        <button onClick={() => raster('image/png')} disabled={!loaded}>
-          PNG
-        </button>
-        <button onClick={() => raster('image/jpeg')} disabled={!loaded}>
-          JPG
-        </button>
-        <button onClick={exportGb7} disabled={!loaded}>
-          GB7
-        </button>
+        <span>Скачать как</span>
+        <button onClick={() => raster('image/png')} disabled={!loaded}>PNG</button>
+        <button onClick={() => raster('image/jpeg')} disabled={!loaded}>JPG</button>
+        <button onClick={exportGb7} disabled={!loaded}>GB7</button>
         <span className="toolbar-divider" />
         <button
           className={eyedropper ? 'tool-active' : ''}
           onClick={() => setEyedropper(!eyedropper)}
           disabled={!loaded}
         >
-          🎯 Пипетка
+          ⌖ Пипетка
         </button>
-        <button
-          onClick={() => setLevelsOpen(true)}
-          disabled={!loaded}
-        >
-          ⚙️ Уровни
-        </button>
+        <button onClick={() => setLevelsOpen(true)} disabled={!loaded}>⇌ Уровни</button>
+        <button onClick={openResize} disabled={!loaded}>⤢ Изменить размер</button>
       </section>
 
       <div className="editor">
@@ -326,27 +380,37 @@ export function App() {
               >
                 <Thumbnail image={loaded.image} channel={ch} grayscale={loaded.grayscale} />
                 <span>{names[ch]}</span>
-                <i>{channels.has(ch) ? '✓' : '✕'}</i>
+                <i>{channels.has(ch) ? '✓' : '—'}</i>
               </button>
             ))
           ) : (
-            <p>Загрузите изображение, чтобы увидеть каналы.</p>
+            <p>Загрузите изображение.</p>
           )}
         </aside>
 
-        <section className="workspace">
+        <section className="workspace" ref={workspaceRef}>
           {loaded ? (
             <canvas
               ref={canvasRef}
               className={eyedropper ? 'eyedropper-cursor' : ''}
               onClick={pick}
               aria-label="Изображение"
+              style={
+                cssSize
+                  ? {
+                      width: cssSize.cssWidth,
+                      height: cssSize.cssHeight,
+                      maxWidth: 'none',
+                      maxHeight: 'none',
+                    }
+                  : undefined
+              }
             />
           ) : (
             <div className="empty-state">
-              <div className="empty-icon">🖼️</div>
-              <h2>Холст пуст</h2>
-              <p>Загрузите PNG, JPG или GB7.</p>
+              <div className="empty-icon">◫</div>
+              <h2>Холст ждёт изображение</h2>
+              <p>Откройте PNG, JPG или GB7.</p>
             </div>
           )}
         </section>
@@ -378,29 +442,58 @@ export function App() {
             </>
           ) : (
             <p>
-              {eyedropper ? 'Кликните по изображению...' : 'Выберите пипетку и кликните на пиксель.'}
+              {eyedropper ? 'Кликните по изображению.' : 'Включите пипетку и выберите пиксель.'}
             </p>
           )}
         </aside>
       </div>
 
-      <p className="notice" role="status">
-        {notice}
-      </p>
+      <p className="notice" role="status">{notice}</p>
 
       <footer className="statusbar">
         {loaded ? (
           <>
             <span>
-              <b>{loaded.source}</b> • {loaded.name}
+              <b>{loaded.source}</b> · {loaded.name}
             </span>
             <span>
               {loaded.image.width} × {loaded.image.height} px
             </span>
             <span>{loaded.colorDepth}</span>
+            <span className="zoom-controls">
+              <label className="zoom-preset-label">
+                <span>Масштаб</span>
+                <select
+                  className="zoom-preset"
+                  value={String(zoom)}
+                  onChange={(e) => setZoom(clampZoom(Number(e.target.value)))}
+                  disabled={!loaded}
+                  aria-label="Масштаб (пресет)"
+                >
+                  {ZOOM_PRESETS.map((p) => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
+                  {!ZOOM_PRESETS.some((p) => p.value === zoom) ? (
+                    <option value={zoom}>{zoom}%</option>
+                  ) : null}
+                </select>
+              </label>
+              <input
+                className="zoom-range"
+                type="range"
+                min={ZOOM_MIN}
+                max={ZOOM_MAX}
+                step={1}
+                value={zoom}
+                disabled={!loaded}
+                onChange={(e) => setZoom(Number(e.target.value))}
+                aria-label="Масштаб"
+              />
+              <span className="zoom-value">{zoom}%</span>
+            </span>
           </>
         ) : (
-          <span>Ничего не загружено</span>
+          <span>Нет открытого изображения</span>
         )}
       </footer>
 
@@ -416,6 +509,14 @@ export function App() {
         onPreviewChange={setLevelsPreview}
         preview={levelsPreview}
       />
+
+      {resizeOpen && loaded && (
+        <ResizeDialog
+          image={loaded.image}
+          onApply={applyResizeResult}
+          onClose={closeResize}
+        />
+      )}
     </main>
   );
 }
