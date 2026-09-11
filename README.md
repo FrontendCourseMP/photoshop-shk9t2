@@ -3,6 +3,7 @@
 Одностраничный учебный редактор изображений для лабораторной работы №3.
 
 **Демо:** https://frontendcoursemp.github.io/photoshop-shk9t2/
+**Демо2** https://inspiring-moxie-99d469.netlify.app если 404 pages
 
 ## Возможности
 
