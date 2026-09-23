@@ -2,7 +2,8 @@ import type { PixelImage } from './gb7';
 
 export type PaddingMode = 'black' | 'white' | 'replicate';
 
-export type KernelChannel = 'red' | 'green' | 'blue' | 'alpha';
+/** Внутренний канал для фильтрации: 'gray' означает R=G=B одновременно (для grayscale-изображений) */
+export type KernelChannel = 'red' | 'green' | 'blue' | 'alpha' | 'gray';
 
 export type Kernel3x3 = [
   number, number, number,
@@ -83,7 +84,7 @@ export const KERNEL_PRESETS: { value: KernelPreset; label: string; kernel: Kerne
 
 export const DEFAULT_KERNEL: Kernel3x3 = [...KERNEL_PRESETS[0].kernel] as Kernel3x3;
 
-export const CHANNEL_OFFSETS: Record<KernelChannel, 0 | 1 | 2 | 3> = {
+export const CHANNEL_OFFSETS: Record<Exclude<KernelChannel, 'gray'>, 0 | 1 | 2 | 3> = {
   red: 0,
   green: 1,
   blue: 2,
@@ -91,11 +92,36 @@ export const CHANNEL_OFFSETS: Record<KernelChannel, 0 | 1 | 2 | 3> = {
 };
 
 export const CHANNEL_LABELS: Record<KernelChannel, string> = {
+  gray: 'Y',
   red: 'R',
   green: 'G',
   blue: 'B',
   alpha: 'A',
 };
+
+export const CHANNEL_TITLES: Record<KernelChannel, string> = {
+  gray: 'Яркость (Gray)',
+  red: 'Красный',
+  green: 'Зелёный',
+  blue: 'Синий',
+  alpha: 'Альфа',
+};
+
+/** Преобразует набор KernelChannel (включая 'gray') в множество реальных RGBA-офсетов 0..3.
+ *  Для 'gray' возвращаются 0, 1, 2 одновременно (R=G=B обработать вместе). */
+export function resolveActiveChannels(channels: ReadonlySet<KernelChannel>): Set<0 | 1 | 2 | 3> {
+  const active = new Set<0 | 1 | 2 | 3>();
+  if (channels.has('red')) active.add(0);
+  if (channels.has('green')) active.add(1);
+  if (channels.has('blue')) active.add(2);
+  if (channels.has('alpha')) active.add(3);
+  if (channels.has('gray')) {
+    active.add(0);
+    active.add(1);
+    active.add(2);
+  }
+  return active;
+}
 
 function validatePixelImage(image: PixelImage) {
   if (!Number.isInteger(image.width) || !Number.isInteger(image.height) || image.width < 1 || image.height < 1) {
@@ -152,7 +178,7 @@ export function applyKernelSync(
   const h = source.height;
   const src = source.data;
   const dst = new Uint8ClampedArray(src.length);
-  const active = new Set([0, 1, 2, 3].filter((c) => options.channels.has(['red', 'green', 'blue', 'alpha'][c] as KernelChannel)));
+  const active = resolveActiveChannels(options.channels);
 
   for (let y = 0; y < h; y += 1) {
     for (let x = 0; x < w; x += 1) {
@@ -209,7 +235,7 @@ export async function applyKernel(
   const h = source.height;
   const src = source.data;
   const dst = new Uint8ClampedArray(src.length);
-  const active = new Set([0, 1, 2, 3].filter((c) => options.channels.has(['red', 'green', 'blue', 'alpha'][c] as KernelChannel)));
+  const active = resolveActiveChannels(options.channels);
   const total = h;
   let reported = 0;
 

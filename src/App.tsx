@@ -587,6 +587,8 @@ export function App() {
       {kernelOpen && loaded && (
         <KernelDialog
           image={loaded.image}
+          grayscale={loaded.grayscale}
+          hasAlpha={loaded.hasAlpha}
           onApply={applyKernelResult}
           onClose={closeKernel}
           onPreview={setKernelPreview}

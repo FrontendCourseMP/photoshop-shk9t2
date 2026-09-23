@@ -165,13 +165,15 @@ export function ResizeDialog({ image, onClose, onApply }: ResizeDialogProps) {
             const nextUnit = e.target.value as Unit;
             setUnit(nextUnit);
             if (nextUnit === 'percent') {
-              const wp = Math.round((pxSize.w / image.width) * 100);
-              const hp = Math.round((pxSize.h / image.height) * 100);
+              // Переключаемся с пикселей на проценты: считаем % от реального размера изображения
+              const wp = Math.max(1, Math.round((image.width / image.width) * 100));
+              const hp = Math.max(1, Math.round((image.height / image.height) * 100));
               setWidthVal(String(wp));
               setHeightVal(lockAspect ? String(wp) : String(hp));
             } else {
-              setWidthVal(String(pxSize.w));
-              setHeightVal(String(pxSize.h));
+              // Переключаемся с процентов на пиксели: подставляем исходный размер изображения (100%)
+              setWidthVal(String(image.width));
+              setHeightVal(String(image.height));
             }
           }}>
             <option value="percent">Проценты (%)</option>

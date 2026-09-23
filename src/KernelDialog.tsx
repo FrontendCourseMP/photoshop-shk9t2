@@ -4,7 +4,7 @@ import { Modal } from './Modal';
 import {
   applyKernel,
   CHANNEL_LABELS,
-  CHANNEL_OFFSETS,
+  CHANNEL_TITLES,
   DEFAULT_KERNEL,
   KERNEL_PRESETS,
   PADDING_MODES,
@@ -17,6 +17,8 @@ import {
 
 export type KernelDialogProps = {
   image: PixelImage;
+  grayscale: boolean;
+  hasAlpha: boolean;
   onClose: () => void;
   onApply: (image: PixelImage) => void;
   onPreview?: (image: PixelImage | null) => void;
@@ -30,13 +32,22 @@ function formatNumber(n: number): string {
   return Number(n.toFixed(4)).toString();
 }
 
-export function KernelDialog({ image, onClose, onApply, onPreview }: KernelDialogProps) {
+export function KernelDialog({ image, grayscale, hasAlpha, onClose, onApply, onPreview }: KernelDialogProps) {
+  const availableChannels = useMemo<KernelChannel[]>(() => {
+    if (grayscale) {
+      return hasAlpha ? ['gray', 'alpha'] : ['gray'];
+    }
+    return hasAlpha ? ['red', 'green', 'blue', 'alpha'] : ['red', 'green', 'blue'];
+  }, [grayscale, hasAlpha]);
+
+  const defaultChannels = useMemo<Set<KernelChannel>>(() => {
+    return new Set<KernelChannel>(availableChannels);
+  }, [availableChannels]);
+
   const [preset, setPreset] = useState<KernelPreset | ''>('identity');
   const [kernelStr, setKernelStr] = useState<string[]>(DEFAULT_KERNEL.map((n) => formatNumber(n)));
   const [padding, setPadding] = useState<PaddingMode>('replicate');
-  const [channels, setChannels] = useState<Set<KernelChannel>>(
-    new Set<KernelChannel>(['red', 'green', 'blue'])
-  );
+  const [channels, setChannels] = useState<Set<KernelChannel>>(defaultChannels);
   const [previewEnabled, setPreviewEnabled] = useState(true);
   const [errors, setErrors] = useState<{ kernel?: string; channels?: string }>({});
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -153,10 +164,22 @@ export function KernelDialog({ image, onClose, onApply, onPreview }: KernelDialo
     });
   };
 
+  // Очищаем channels от каналов, несовместимых с текущим форматом (защита на всякий случай).
+  useEffect(() => {
+    setChannels((old) => {
+      const next = new Set<KernelChannel>();
+      old.forEach((ch) => {
+        if (availableChannels.includes(ch)) next.add(ch);
+      });
+      if (next.size === 0) availableChannels.forEach((ch) => next.add(ch));
+      return next;
+    });
+  }, [availableChannels]);
+
   const reset = () => {
     applyPreset('identity');
     setPadding('replicate');
-    setChannels(new Set<KernelChannel>(['red', 'green', 'blue']));
+    setChannels(new Set<KernelChannel>(availableChannels));
     setPreviewEnabled(true);
   };
 
@@ -290,12 +313,8 @@ export function KernelDialog({ image, onClose, onApply, onPreview }: KernelDialo
         <div className="kernel-column kernel-column-right">
           <div className="kernel-section-label">Каналы</div>
           <div className="kernel-channels" aria-label="Каналы для применения фильтра">
-            {(['red', 'green', 'blue', 'alpha'] as KernelChannel[]).map((ch) => {
+            {availableChannels.map((ch) => {
               const active = channels.has(ch);
-              const title =
-                ch === 'red' ? 'Красный' :
-                ch === 'green' ? 'Зелёный' :
-                ch === 'blue' ? 'Синий' : 'Альфа';
               return (
                 <button
                   type="button"
@@ -304,7 +323,7 @@ export function KernelDialog({ image, onClose, onApply, onPreview }: KernelDialo
                   aria-pressed={active}
                   onClick={() => toggleChannel(ch)}
                   disabled={applying}
-                  title={title}
+                  title={CHANNEL_TITLES[ch]}
                 >
                   {CHANNEL_LABELS[ch]}
                 </button>
