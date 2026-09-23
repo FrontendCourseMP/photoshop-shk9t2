@@ -454,48 +454,107 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   font-weight: 600;
 }
 
-/* Kernel Dialog – максимально жёсткий layout, исключить любые наложения */
-.kernel-dialog { width: min-content; max-width: calc(100vw - 24px); }
+/* Kernel Dialog – ОДИН СТОЛБЕЦ, компактные элементы */
 .kernel-dialog .modal-panel {
-  width: 900px !important;
-  max-width: calc(100vw - 24px) !important;
-  margin: 0 auto;
-  box-sizing: border-box;
+  width: min(680px, calc(100vw - 24px)) !important;
+  max-width: 100% !important;
+  margin: 0 auto !important;
+  padding: 14px !important;
+  gap: 12px !important;
 }
 .kernel-layout {
-  display: grid;
-  grid-template-columns: 1fr 300px !important;
-  grid-template-rows: auto auto;
-  gap: 18px 24px;
-  align-items: start;
-  justify-items: stretch;
-}
-/* Левая колонка: Пресет → Σ-блок → сетка 3×3 → Заполнение края (верхний блок) */
-.kernel-layout > .kernel-column:first-child {
-  grid-column: 1 / 2;
-  grid-row: 1 / 2;
-  width: 100%;
-}
-/* Правая колонка: Каналы, Предпросмотр, Прогресс */
-.kernel-layout > .kernel-column.kernel-column-right {
-  grid-column: 2 / 3;
-  grid-row: 1 / 2;
-  width: 100%;
-}
-/* Легенда – В САМЫЙ НИЗ, на всю ширину. 100% ни на что не налезет! */
-.kernel-legend {
-  grid-column: 1 / -1 !important;
-  grid-row: 2 / 3 !important;
-  width: 100% !important;
-  margin: 0 !important;
-  box-sizing: border-box;
-}
-.kernel-column {
   display: grid !important;
-  gap: 14px !important;
-  align-content: start !important;
-  width: 100%;
+  grid-template-columns: 1fr !important;
+  grid-auto-flow: row !important;
+  gap: 12px !important;
+  width: 100% !important;
+}
+.kernel-column,
+.kernel-column-right {
+  display: contents !important; /* Все дети kernel-layout напрямую в grid – нет лишних обёрток! */
+}
+/* === Компактные элементы === */
+.num-input > span,
+.kernel-section-label {
+  font-size: .7rem !important;
+  letter-spacing: .06em !important;
+}
+.num-input select,
+.num-input input,
+.kernel-preset select,
+.kernel-padding select,
+.kernel-cell {
+  padding: 6px 8px !important;
+  font-size: .9rem !important;
+}
+.kernel-sum {
+  padding: 8px 10px !important;
+  gap: 4px !important;
+}
+.kernel-sum-label {
+  min-width: 26px !important;
+  height: 22px !important;
+  font-size: .85rem !important;
+}
+.kernel-sum-value {
+  font-size: .95rem !important;
+}
+.kernel-sum-note {
+  font-size: .72rem !important;
+}
+/* Каналы – маленькие чипы, 4 в ряд */
+.kernel-channels {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+}
+.channel-chip {
+  padding: 6px 4px !important;
+  font-size: .85rem !important;
+  border-radius: 6px !important;
+}
+/* Секция каналов и предпросмотра в одну строку – экономим место */
+.kernel-preview-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 20px;
+}
+.kernel-preview-row .kernel-channels {
+  flex: 1 1 180px;
   min-width: 0;
+}
+.preview-checkbox.kernel-preview {
+  margin: 0;
+  flex: 0 0 auto;
+}
+.preview-checkbox.kernel-preview input {
+  width: 16px;
+  height: 16px;
+}
+.preview-checkbox.kernel-preview span {
+  font-size: .85rem !important;
+}
+/* Сетка 3×3 ячеек */
+.kernel-grid-3 {
+  gap: 6px !important;
+}
+.kernel-cell {
+  border-radius: 6px !important;
+}
+/* Легенда */
+.kernel-legend {
+  padding: 10px 12px !important;
+  font-size: .78rem !important;
+  line-height: 1.45 !important;
+}
+.kernel-progress {
+  gap: 4px !important;
+}
+.kernel-progress-label {
+  font-size: .75rem !important;
+}
+.kernel-progress-bar {
+  height: 6px !important;
 }
 
 .kernel-preset select {
