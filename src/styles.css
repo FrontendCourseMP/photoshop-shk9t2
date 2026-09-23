@@ -260,12 +260,12 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   background: transparent;
   color: inherit;
   width: calc(100% - 32px);
-  max-width: 100%;
   max-height: calc(100dvh - 32px);
   margin: 16px auto;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: auto;
 }
+/* Уступаем inline-style widthMax, переданному из конкретной модалки (Kernel/Resize/Levels) */
+.modal-dialog[style*="max-width"] { max-width: none; }
 .modal-dialog::backdrop {
   background: rgba(4, 8, 20, 0.6);
   backdrop-filter: blur(2px);
@@ -455,13 +455,22 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 }
 
 /* Kernel Dialog */
-.kernel-dialog .modal-panel { max-width: 680px; width: 100%; }
+.kernel-dialog .modal-panel { max-width: 780px; width: 100%; }
 .kernel-layout {
   display: grid;
-  grid-template-columns: 1fr 260px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
   gap: 20px;
+  align-items: start;
 }
-.kernel-column { display: grid; gap: 14px; align-content: start; }
+/* Авто-перенос правой колонки ниже, если общая ширина модалки мала (без media-query) */
+@container (max-width: 640px) {
+  .kernel-layout { grid-template-columns: 1fr; }
+}
+/* Fallback для браузеров без container queries: на маленьких экранах 1 колонка */
+@media (max-width: 820px) {
+  .kernel-layout { grid-template-columns: 1fr; }
+}
+.kernel-column { display: grid; gap: 14px; align-content: start; min-width: 0; }
 .kernel-column-right { padding-top: 2px; }
 
 .kernel-preset select {
@@ -592,11 +601,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   line-height: 1.5;
 }
 .kernel-legend p { margin: 0; }
-.kernel-legend b { color: #e7edf9; }
-
-@media (max-width: 640px) {
-  .kernel-layout { grid-template-columns: 1fr; }
-}
+.kernel-legend b { color: #eef3ff; }
 
 @media (max-width: 760px) {
   .topbar { align-items: flex-start; flex-direction: column; gap: 12px; }

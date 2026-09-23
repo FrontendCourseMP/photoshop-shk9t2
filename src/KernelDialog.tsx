@@ -237,7 +237,7 @@ export function KernelDialog({ image, grayscale, hasAlpha, onClose, onApply, onP
     <Modal
       title="Фильтрация / Ядро 3×3"
       onClose={close}
-      widthMax="680px"
+      widthMax="780px"
       footer={footer}
       className="kernel-dialog"
     >
