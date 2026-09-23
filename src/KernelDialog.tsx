@@ -237,7 +237,7 @@ export function KernelDialog({ image, grayscale, hasAlpha, onClose, onApply, onP
     <Modal
       title="Фильтрация / Ядро 3×3"
       onClose={close}
-      widthMax="780px"
+      widthMax="900px"
       footer={footer}
       className="kernel-dialog"
     >
@@ -350,18 +350,19 @@ export function KernelDialog({ image, grayscale, hasAlpha, onClose, onApply, onP
               </span>
             </div>
           ) : null}
+        </div>
 
-          <div className="kernel-legend">
-            <p>
-              <b>Тождественное:</b> центр = 1, остальное 0.
-              <br />
-              <b>Повышение резкости:</b> 5× центр − 4 соседей.
-              <br />
-              <b>Гаусс 3×3 / Box:</b> размытие, нормализуются по сумме.
-              <br />
-              <b>Прюитт X/Y:</b> выделяют границы по оси, нормализация через |Σ|.
-            </p>
-          </div>
+        {/* Легенда — теперь В САМОМ НИЗУ, на всю ширину. Не налазит ни на что! */}
+        <div className="kernel-legend">
+          <p>
+            <b>Тождественное:</b> центр = 1, остальное 0.
+            <br />
+            <b>Повышение резкости:</b> 5× центр − 4 соседей.
+            <br />
+            <b>Гаусс 3×3 / Box:</b> размытие, нормализуются по сумме.
+            <br />
+            <b>Прюитт X/Y:</b> выделяют границы по оси, нормализация через |Σ|.
+          </p>
         </div>
       </div>
     </Modal>

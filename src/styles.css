@@ -454,32 +454,48 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   font-weight: 600;
 }
 
-/* Kernel Dialog */
+/* Kernel Dialog – максимально жёсткий layout, исключить любые наложения */
+.kernel-dialog { width: min-content; max-width: calc(100vw - 24px); }
 .kernel-dialog .modal-panel {
-  max-width: min(820px, calc(100vw - 32px));
-  width: 100%;
+  width: 900px !important;
+  max-width: calc(100vw - 24px) !important;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 .kernel-layout {
   display: grid;
-  grid-template-columns: 1fr 290px;
-  gap: 24px;
+  grid-template-columns: 1fr 300px !important;
+  grid-template-rows: auto auto;
+  gap: 18px 24px;
   align-items: start;
+  justify-items: stretch;
+}
+/* Левая колонка: Пресет → Σ-блок → сетка 3×3 → Заполнение края (верхний блок) */
+.kernel-layout > .kernel-column:first-child {
+  grid-column: 1 / 2;
+  grid-row: 1 / 2;
+  width: 100%;
+}
+/* Правая колонка: Каналы, Предпросмотр, Прогресс */
+.kernel-layout > .kernel-column.kernel-column-right {
+  grid-column: 2 / 3;
+  grid-row: 1 / 2;
+  width: 100%;
+}
+/* Легенда – В САМЫЙ НИЗ, на всю ширину. 100% ни на что не налезет! */
+.kernel-legend {
+  grid-column: 1 / -1 !important;
+  grid-row: 2 / 3 !important;
+  width: 100% !important;
+  margin: 0 !important;
+  box-sizing: border-box;
 }
 .kernel-column {
-  display: grid;
-  gap: 14px;
-  align-content: start;
+  display: grid !important;
+  gap: 14px !important;
+  align-content: start !important;
+  width: 100%;
   min-width: 0;
-  overflow: visible;
-}
-.kernel-column-right {
-  padding-top: 2px;
-  min-width: 0;
-}
-/* Только при действительно узком viewport — переносим правую колонку под левую */
-@media (max-width: 720px) {
-  .kernel-layout { grid-template-columns: 1fr; }
 }
 
 .kernel-preset select {
