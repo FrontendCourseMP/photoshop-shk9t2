@@ -68,12 +68,26 @@ function Thumbnail({
     c.width = w;
     c.height = h;
 
-    const d = renderChannels(image, new Set([channel]), grayscale);
+    // Для превью одиночного канала используем градации серого:
+    // — общепринятый подход в графических редакторах;
+    // — alpha-канал традиционно показывается как ч/б маска в любом случае.
+    const data = new Uint8ClampedArray(image.data.length);
+    for (let i = 0; i < image.data.length; i += 4) {
+      let value: number;
+      if (channel === 'alpha') value = image.data[i + 3];
+      else if (grayscale || channel === 'gray') value = image.data[i];
+      else if (channel === 'red') value = image.data[i];
+      else if (channel === 'green') value = image.data[i + 1];
+      else value = image.data[i + 2];
+      // Все три компоненты одинаковые → градации серого, alpha强制 255.
+      data.set([value, value, value, 255], i);
+    }
+
     const t = document.createElement('canvas');
     t.width = image.width;
     t.height = image.height;
     t.getContext('2d')?.putImageData(
-      new ImageData(new Uint8ClampedArray(d.data), d.width, d.height),
+      new ImageData(new Uint8ClampedArray(data), image.width, image.height),
       0,
       0
     );
@@ -113,6 +127,21 @@ export function App() {
         ? (['red', 'green', 'blue', 'alpha'] as const)
         : (['red', 'green', 'blue'] as const);
   }, [loaded]);
+
+  // Защищаемся от несовпадения: если в channels остались каналы от предыдущего
+  // формата (например, RGB → grayscale), удаляем недопустимые.
+  useEffect(() => {
+    if (!loaded) return;
+    setChannels((old) => {
+      const next = new Set<Channel>();
+      old.forEach((ch) => {
+        if ((available as readonly Channel[]).includes(ch)) next.add(ch);
+      });
+      // Если после очистки ни один канал не остался — включаем все доступные.
+      if (next.size === 0) available.forEach((ch) => next.add(ch));
+      return next;
+    });
+  }, [loaded, available]);
 
   const display = useMemo(() => {
     if (!loaded) return null;
@@ -180,20 +209,37 @@ export function App() {
         };
       } else if (isBrowserImage(file)) {
         const image = await decodeBrowserImage(file);
-        const hasAlpha = (() => {
-          for (let i = 3; i < image.data.length; i += 4) {
-            if (image.data[i] < 255) return true;
-          }
-          return false;
-        })();
         const isJpeg = /\.jpe?g$/i.test(file.name);
+
+        let hasAlpha = false;
+        let isGrayscale = true;
+        for (let i = 0; i < image.data.length; i += 4) {
+          const r = image.data[i];
+          const g = image.data[i + 1];
+          const b = image.data[i + 2];
+          const a = image.data[i + 3];
+          if (r !== g || g !== b) isGrayscale = false;
+          if (a < 255) hasAlpha = true;
+          if (!isGrayscale && hasAlpha) break; // обе проверки удовлетворены — дальше не сканируем
+        }
+        // JPEG по определению не может иметь альфа
+        if (isJpeg) hasAlpha = false;
+
+        // Формируем строку глубины цвета в зависимости от реального формата
+        let colorDepth: string;
+        if (isGrayscale) {
+          colorDepth = hasAlpha ? '8 бит × 2 (серый + альфа)' : '8 бит × 1 (серый)';
+        } else {
+          colorDepth = hasAlpha ? '8 бит × 4 (RGBA)' : '8 бит × 3 (RGB)';
+        }
+
         next = {
           image,
           source: isJpeg ? 'JPG' : 'PNG',
           name: file.name,
-          colorDepth: '8 бит × 4 (RGBA)',
-          grayscale: false,
-          hasAlpha: !isJpeg && hasAlpha,
+          colorDepth,
+          grayscale: isGrayscale,
+          hasAlpha,
         };
       } else {
         throw new Error(
@@ -202,13 +248,17 @@ export function App() {
       }
 
       setLoaded(next);
+      // Количество каналов строго соответствует формату:
+      // 1 (grayscale) / 2 (grayscale + alpha) / 3 (RGB) / 4 (RGBA)
       setChannels(
         new Set(
           next.grayscale
             ? next.hasAlpha
               ? (['gray', 'alpha'] as const)
               : (['gray'] as const)
-            : (['red', 'green', 'blue', 'alpha'] as const)
+            : next.hasAlpha
+              ? (['red', 'green', 'blue', 'alpha'] as const)
+              : (['red', 'green', 'blue'] as const)
         )
       );
       setPicked(null);
